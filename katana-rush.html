@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Katana Rush</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#0a0a14; font-family:'Segoe UI', Tahoma, sans-serif; }
+  #gameCanvas { display:block; width:100%; height:100%; touch-action:none; }
+
+  /* ---- Top HUD ---- */
+  #hud {
+    position:absolute; top:0; left:0; width:100%;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    padding:14px 16px; pointer-events:none; z-index:10;
+  }
+  #score {
+    color:#fff; font-size:22px; font-weight:800; letter-spacing:1px;
+    text-shadow:0 0 10px rgba(255,80,120,0.8), 0 2px 4px rgba(0,0,0,0.6);
+  }
+  #coins {
+    color:#ffe066; font-size:18px; font-weight:700;
+    text-shadow:0 0 8px rgba(255,224,102,0.7), 0 2px 4px rgba(0,0,0,0.6);
+  }
+
+  /* ---- Ad Banner Placeholder (top) ---- */
+  #adBannerTop {
+    position:absolute; bottom:0; left:0; width:100%; height:60px;
+    background:repeating-linear-gradient(45deg,#1c1c28,#1c1c28 10px,#22222e 10px,#22222e 20px);
+    border-top:1px solid rgba(255,255,255,0.15);
+    display:flex; align-items:center; justify-content:center;
+    color:rgba(255,255,255,0.45); font-size:12px; letter-spacing:2px;
+    z-index:10; pointer-events:none;
+  }
+
+  /* ---- Start / Game Over overlay ---- */
+  .overlay {
+    position:absolute; top:0; left:0; width:100%; height:100%;
+    background:radial-gradient(ellipse at center, rgba(20,10,30,0.85), rgba(5,5,10,0.97));
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    z-index:30; text-align:center; padding:20px;
+  }
+  .hidden { display:none !important; }
+  .logo {
+    font-size:52px; font-weight:900; color:#fff; letter-spacing:2px;
+    background:linear-gradient(135deg,#ff4d6d,#ff9e7d,#ffe066);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 0 30px rgba(255,80,110,0.4);
+    margin-bottom:6px;
+  }
+  .tagline { color:#aab; font-size:14px; margin-bottom:30px; letter-spacing:1px; }
+  .btn {
+    padding:14px 42px; font-size:18px; font-weight:800; color:#0a0a14;
+    background:linear-gradient(135deg,#ffe066,#ff9e7d);
+    border:none; border-radius:30px; cursor:pointer; letter-spacing:1px;
+    box-shadow:0 6px 20px rgba(255,150,100,0.4);
+    transition:transform 0.15s ease;
+  }
+  .btn:active { transform:scale(0.94); }
+  .subtext { margin-top:22px; color:#778; font-size:13px; max-width:280px; line-height:1.6; }
+  .gameover-title { font-size:36px; font-weight:900; color:#ff4d6d; margin-bottom:8px; text-shadow:0 0 20px rgba(255,77,109,0.5); }
+  .finalScore { color:#fff; font-size:20px; margin-bottom:4px; }
+  .bestScore { color:#ffe066; font-size:15px; margin-bottom:28px; }
+
+  /* ---- Interstitial ad placeholder ---- */
+  #interstitial {
+    position:absolute; top:0; left:0; width:100%; height:100%;
+    background:rgba(5,5,10,0.96); z-index:40;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  .ad-box {
+    width:80%; max-width:340px; height:220px;
+    background:repeating-linear-gradient(45deg,#1c1c28,#1c1c28 12px,#24243050 12px,#24243050 24px);
+    border:1px dashed rgba(255,255,255,0.25); border-radius:12px;
+    display:flex; align-items:center; justify-content:center;
+    color:rgba(255,255,255,0.4); font-size:13px; letter-spacing:2px; margin-bottom:26px;
+  }
+
+  /* ---- Touch controls hint ---- */
+  #controlsHint {
+    position:absolute; bottom:70px; left:0; width:100%; text-align:center;
+    color:rgba(255,255,255,0.35); font-size:12px; z-index:5; pointer-events:none;
+    letter-spacing:1px;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="score">0 م</div>
+  <div id="coins">🪙 0</div>
+</div>
+
+<div id="controlsHint" class="hidden">اسحب يمين / يسار — اسحب لأعلى للقفز — اسحب لأسفل للانزلاق</div>
+
+<div id="adBannerTop" class="hidden">مساحة إعلانية</div>
+
+<div id="startScreen" class="overlay">
+  <div class="logo">KATANA RUSH</div>
+  <div class="tagline">اهرب . اقفز . انزلق . لا تتوقف</div>
+  <button class="btn" id="startBtn">ابدأ الجري</button>
+  <div class="subtext">حرّك الشاشة أو استخدم الأسهم للتحكم بالشخصية عبر ثلاثة مسارات</div>
+</div>
+
+<div id="interstitial" class="hidden">
+  <div class="ad-box">إعلان (Placeholder)<br>اربطه بشبكة إعلانات حقيقية</div>
+  <button class="btn" id="continueBtn">متابعة</button>
+</div>
+
+<div id="gameOverScreen" class="overlay hidden">
+  <div class="gameover-title">انتهت الجولة!</div>
+  <div class="finalScore" id="finalScoreText">النقاط: 0</div>
+  <div class="bestScore" id="bestScoreText">أفضل نتيجة: 0</div>
+  <button class="btn" id="restartBtn">حاول مجددًا</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* =========================================================
+   KATANA RUSH — 3D anime-style endless runner
+   Original character design (not based on any copyrighted IP)
+   ========================================================= */
+
+let scene, camera, renderer, clock;
+let player, playerMixerParts = {};
+let lanes = [-2.4, 0, 2.4];
+let currentLane = 1;
+let targetX = 0;
+let isJumping = false, isSliding = false;
+let jumpVelocity = 0;
+let slideTimer = 0;
+const GRAVITY = -0.028;
+const JUMP_FORCE = 0.46;
+const GROUND_Y = 0.9;
+
+let obstacles = [];
+let coinsArr = [];
+let worldSpeed = 0.28;
+const BASE_SPEED = 0.28;
+const MAX_SPEED = 0.62;
+let distance = 0;
+let coinCount = 0;
+let bestScore = parseInt(localStorage.getItem('katanaRushBest') || '0');
+let running = false;
+let spawnZ = -40;
+let segmentLength = 6;
+let lastObstacleLane = -1;
+
+const trackGroup = new THREE.Group();
+const groundTiles = [];
+
+init();
+
+function init() {
+  scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x0d0d1a, 20, 55);
+  scene.background = new THREE.Color(0x0d0d1a);
+
+  camera = new THREE.PerspectiveCamera(62, window.innerWidth/window.innerHeight, 0.1, 100);
+  camera.position.set(0, 4.6, 8.2);
+  camera.lookAt(0, 1.4, -5);
+
+  renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias:true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+
+  // Lighting - moody anime dusk vibe
+  const ambient = new THREE.AmbientLight(0x6a6ad0, 0.55);
+  scene.add(ambient);
+  const dirLight = new THREE.DirectionalLight(0xffb3a7, 1.1);
+  dirLight.position.set(-4, 10, 6);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.set(1024,1024);
+  scene.add(dirLight);
+  const rim = new THREE.PointLight(0xff5577, 1.2, 20);
+  rim.position.set(0, 3, -3);
+  scene.add(rim);
+
+  scene.add(trackGroup);
+
+  buildGround();
+  buildPlayer();
+
+  clock = new THREE.Clock();
+  window.addEventListener('resize', onResize);
+  setupControls();
+  animate();
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+/* ---------- Ground / track ---------- */
+function buildGround() {
+  const railMat = new THREE.MeshStandardMaterial({ color:0x2a2a3a, roughness:0.8 });
+  const glowMat = new THREE.MeshStandardMaterial({ color:0xff4d6d, emissive:0xff2255, emissiveIntensity:0.6, roughness:0.4 });
+
+  for (let i=0;i<12;i++) {
+    const tile = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.BoxGeometry(8, 0.4, segmentLength), railMat);
+    base.position.y = -0.2;
+    base.receiveShadow = true;
+    tile.add(base);
+
+    // lane dividers glow strips
+    [-1.2, 1.2].forEach(x=>{
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, segmentLength), glowMat);
+      strip.position.set(x, 0.01, 0);
+      tile.add(strip);
+    });
+
+    tile.position.z = -i*segmentLength;
+    trackGroup.add(tile);
+    groundTiles.push(tile);
+  }
+}
+
+/* ---------- Player (original anime-style low-poly character) ---------- */
+function buildPlayer() {
+  player = new THREE.Group();
+
+  const skinMat = new THREE.MeshStandardMaterial({ color:0xffd9b3, roughness:0.6 });
+  const hairMat = new THREE.MeshStandardMaterial({ color:0x2b2440, roughness:0.4 });
+  const cloakMat = new THREE.MeshStandardMaterial({ color:0x1c2333, roughness:0.55 });
+  const strapMat = new THREE.MeshStandardMaterial({ color:0x6b5744, roughness:0.7 });
+  const bladeMat = new THREE.MeshStandardMaterial({ color:0xcfe8ff, emissive:0x4d8cff, emissiveIntensity:0.5, metalness:0.6, roughness:0.2 });
+
+  // torso (cloak)
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.4,0.9,8), cloakMat);
+  torso.position.y = 0.95;
+  torso.castShadow = true;
+  player.add(torso);
+
+  // head
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.28,12,12), skinMat);
+  head.position.y = 1.62;
+  head.castShadow = true;
+  player.add(head);
+
+  // spiky anime hair
+  const hairGroup = new THREE.Group();
+  for (let i=0;i<7;i++) {
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.07,0.32,5), hairMat);
+    const ang = (i/7) * Math.PI * 1.5 - Math.PI*0.6;
+    spike.position.set(Math.sin(ang)*0.22, 1.85 + Math.cos(ang*1.4)*0.05, Math.cos(ang)*0.14 - 0.05);
+    spike.rotation.z = -ang*0.6;
+    spike.rotation.x = 0.3;
+    hairGroup.add(spike);
+  }
+  player.add(hairGroup);
+
+  // shoulder straps (ODM-gear inspired, original design)
+  [-0.28, 0.28].forEach(x=>{
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.7,0.1), strapMat);
+    strap.position.set(x, 1.0, 0.15);
+    strap.rotation.z = x>0? -0.15:0.15;
+    player.add(strap);
+  });
+
+  // arms
+  const armGeo = new THREE.CapsuleGeometry(0.09,0.55,4,8);
+  const armL = new THREE.Mesh(armGeo, cloakMat);
+  armL.position.set(-0.42,0.85,0);
+  armL.rotation.z = 0.2;
+  armL.castShadow = true;
+  player.add(armL);
+  const armR = new THREE.Mesh(armGeo, cloakMat);
+  armR.position.set(0.42,0.85,0);
+  armR.rotation.z = -0.2;
+  armR.castShadow = true;
+  player.add(armR);
+  playerMixerParts.armL = armL;
+  playerMixerParts.armR = armR;
+
+  // legs
+  const legGeo = new THREE.CapsuleGeometry(0.11,0.55,4,8);
+  const legL = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({color:0x14141f}));
+  legL.position.set(-0.16,0.35,0);
+  legL.castShadow = true;
+  player.add(legL);
+  const legR = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({color:0x14141f}));
+  legR.position.set(0.16,0.35,0);
+  legR.castShadow = true;
+  player.add(legR);
+  playerMixerParts.legL = legL;
+  playerMixerParts.legR = legR;
+
+  // glowing blade on back
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.06,1.0,0.02), bladeMat);
+  blade.position.set(0,1.1,-0.25);
+  blade.rotation.z = 0.15;
+  player.add(blade);
+
+  // cloak cape trailing behind
+  const cape = new THREE.Mesh(new THREE.PlaneGeometry(0.7,1.1,1,1), new THREE.MeshStandardMaterial({color:0xff4d6d, side:THREE.DoubleSide, roughness:0.7}));
+  cape.position.set(0,0.95,-0.28);
+  cape.rotation.x = 0.15;
+  player.add(cape);
+  playerMixerParts.cape = cape;
+
+  player.position.set(0, 0, 0);
+  player.scale.set(0.85,0.85,0.85);
+  scene.add(player);
+}
+
+/* ---------- Obstacles & coins ---------- */
+function spawnRow(z) {
+  const laneChoices = [0,1,2];
+  const pattern = Math.random();
+
+  if (pattern < 0.62) {
+    // one obstacle in a random lane, type varies
+    const lane = laneChoices[Math.floor(Math.random()*3)];
+    const type = Math.random() < 0.5 ? 'block' : 'bar';
+    spawnObstacle(lane, z, type);
+    // coins in the other lanes
+    laneChoices.forEach(l=>{ if(l!==lane) maybeCoinLane(l,z); });
+  } else if (pattern < 0.8) {
+    // two obstacles, one free lane
+    const free = laneChoices[Math.floor(Math.random()*3)];
+    laneChoices.forEach(l=>{
+      if (l!==free) spawnObstacle(l, z, Math.random()<0.5?'block':'bar');
+      else maybeCoinLane(l,z,true);
+    });
+  } else {
+    // just coins, no obstacle - breather row
+    laneChoices.forEach(l=> maybeCoinLane(l,z));
+  }
+}
+
+function maybeCoinLane(lane, z, guaranteed) {
+  if (guaranteed || Math.random() < 0.7) {
+    for (let i=0;i<3;i++) {
+      spawnCoin(lane, z - i*1.1);
+    }
+  }
+}
+
+function spawnObstacle(lane, z, type) {
+  let mesh;
+  if (type === 'block') {
+    mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1,1.1,1.1),
+      new THREE.MeshStandardMaterial({ color:0x3a3550, roughness:0.6, emissive:0x220011, emissiveIntensity:0.3 })
+    );
+    mesh.position.set(lanes[lane], 0.55, z);
+    mesh.userData.jumpOver = true;
+  } else {
+    // bar you must slide under
+    mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1,0.3,0.3),
+      new THREE.MeshStandardMaterial({ color:0xff8855, emissive:0xaa3300, emissiveIntensity:0.4, roughness:0.5 })
+    );
+    mesh.position.set(lanes[lane], 1.55, z);
+    mesh.userData.slideUnder = true;
+  }
+  mesh.castShadow = true;
+  mesh.userData.lane = lane;
+  mesh.userData.type = type;
+  trackGroup.add(mesh);
+  obstacles.push(mesh);
+}
+
+function spawnCoin(lane, z) {
+  const coin = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18,0.18,0.05,12),
+    new THREE.MeshStandardMaterial({ color:0xffe066, emissive:0xffaa00, emissiveIntensity:0.6, metalness:0.7, roughness:0.2 })
+  );
+  coin.rotation.x = Math.PI/2;
+  coin.position.set(lanes[lane], 0.9, z);
+  coin.userData.lane = lane;
+  trackGroup.add(coin);
+  coinsArr.push(coin);
+}
+
+/* ---------- Controls ---------- */
+function setupControls() {
+  let touchStartX=0, touchStartY=0, touching=false;
+
+  window.addEventListener('touchstart', e=>{
+    touching = true;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, {passive:true});
+
+  window.addEventListener('touchend', e=>{
+    if (!touching) return;
+    touching = false;
+    const dx = (e.changedTouches[0].clientX - touchStartX);
+    const dy = (e.changedTouches[0].clientY - touchStartY);
+    handleSwipe(dx,dy);
+  }, {passive:true});
+
+  window.addEventListener('keydown', e=>{
+    if (!running) return;
+    if (e.key === 'ArrowLeft') moveLane(-1);
+    if (e.key === 'ArrowRight') moveLane(1);
+    if (e.key === 'ArrowUp' || e.key===' ') doJump();
+    if (e.key === 'ArrowDown') doSlide();
+  });
+}
+
+function handleSwipe(dx,dy) {
+  if (!running) return;
+  const absX = Math.abs(dx), absY = Math.abs(dy);
+  if (absX > absY && absX > 30) {
+    moveLane(dx>0?1:-1);
+  } else if (absY > 30) {
+    if (dy < 0) doJump(); else doSlide();
+  }
+}
+
+function moveLane(dir) {
+  currentLane = Math.max(0, Math.min(2, currentLane+dir));
+  targetX = lanes[currentLane];
+}
+function doJump() {
+  if (isJumping || isSliding) return;
+  isJumping = true;
+  jumpVelocity = JUMP_FORCE;
+}
+function doSlide() {
+  if (isSliding || isJumping) return;
+  isSliding = true;
+  slideTimer = 0.55;
+}
+
+/* ---------- Game flow ---------- */
+function startGame() {
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('gameOverScreen').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('adBannerTop').classList.remove('hidden');
+  document.getElementById('controlsHint').classList.remove('hidden');
+  setTimeout(()=> document.getElementById('controlsHint').classList.add('hidden'), 3500);
+
+  // reset state
+  obstacles.forEach(o=>trackGroup.remove(o)); obstacles=[];
+  coinsArr.forEach(c=>trackGroup.remove(c)); coinsArr=[];
+  distance = 0; coinCount = 0; worldSpeed = BASE_SPEED;
+  currentLane = 1; targetX = 0; isJumping=false; isSliding=false;
+  player.position.set(0,0,0);
+  spawnZ = -20;
+  for (let i=0;i<6;i++) { spawnRow(spawnZ); spawnZ -= segmentLength; }
+  running = true;
+}
+
+function endGame() {
+  running = false;
+  const finalScore = Math.floor(distance);
+  if (finalScore > bestScore) {
+    bestScore = finalScore;
+    localStorage.setItem('katanaRushBest', bestScore);
+  }
+  document.getElementById('finalScoreText').textContent = `النقاط: ${finalScore}`;
+  document.getElementById('bestScoreText').textContent = `أفضل نتيجة: ${bestScore}`;
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('adBannerTop').classList.add('hidden');
+
+  // Show interstitial ad placeholder before game-over screen (simulates real ad flow)
+  document.getElementById('interstitial').classList.remove('hidden');
+}
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+document.getElementById('continueBtn').addEventListener('click', ()=>{
+  document.getElementById('interstitial').classList.add('hidden');
+  document.getElementById('gameOverScreen').classList.remove('hidden');
+});
+
+/* ---------- Collision ---------- */
+function checkCollisions() {
+  const playerZ = player.position.z;
+  for (let i=obstacles.length-1;i>=0;i--) {
+    const o = obstacles[i];
+    if (o.position.z > playerZ - 4) trackGroup.remove(o) & obstacles.splice(i,1);
+  }
+  obstacles.forEach(o=>{
+    const dz = Math.abs(o.position.z - playerZ);
+    const dx = Math.abs(o.position.x - player.position.x);
+    if (dz < 0.55 && dx < 0.75) {
+      if (o.userData.jumpOver) {
+        // must be jumping and high enough
+        if (!(isJumping && player.position.y > 0.55)) {
+          running=false; endGame();
+        }
+      } else if (o.userData.slideUnder) {
+        if (!isSliding) {
+          running=false; endGame();
+        }
+      }
+    }
+  });
+  for (let i=coinsArr.length-1;i>=0;i--) {
+    const c = coinsArr[i];
+    if (c.position.z > playerZ - 4) { trackGroup.remove(c); coinsArr.splice(i,1); continue; }
+    const dz = Math.abs(c.position.z - playerZ);
+    const dx = Math.abs(c.position.x - player.position.x);
+    if (dz < 0.5 && dx < 0.6) {
+      coinCount++;
+      trackGroup.remove(c);
+      coinsArr.splice(i,1);
+    }
+  }
+}
+
+/* ---------- Animation loop ---------- */
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.05);
+
+  if (running) {
+    // speed ramps with distance
+    worldSpeed = Math.min(MAX_SPEED, BASE_SPEED + distance*0.0009);
+    distance += worldSpeed * 60 * delta * 0.15;
+
+    // move world toward camera (player stays near z=0, world scrolls)
+    const moveAmt = worldSpeed * 60 * delta * 0.06;
+    trackGroup.position.z += moveAmt;
+
+    // recycle ground tiles
+    groundTiles.forEach(t=>{
+      if (t.position.z + trackGroup.position.z > segmentLength*2) {
+        t.position.z -= segmentLength*groundTiles.length;
+      }
+    });
+
+    // spawn new rows as needed
+    if (trackGroup.position.z + spawnZ > -segmentLength*3) {
+      spawnRow(spawnZ);
+      spawnZ -= segmentLength;
+    }
+
+    // lane movement (lerp)
+    player.position.x += (targetX - player.position.x) * Math.min(1, delta*10);
+
+    // jump physics
+    if (isJumping) {
+      player.position.y += jumpVelocity;
+      jumpVelocity += GRAVITY;
+      if (player.position.y <= 0) {
+        player.position.y = 0;
+        isJumping = false;
+        jumpVelocity = 0;
+      }
+    }
+
+    // slide timer
+    if (isSliding) {
+      slideTimer -= delta;
+      player.scale.y = 0.5;
+      player.position.y = -0.15;
+      if (slideTimer <= 0) {
+        isSliding = false;
+        player.scale.y = 0.85;
+        player.position.y = 0;
+      }
+    }
+
+    // running animation (leg/arm swing) using local "player time"
+    const t = performance.now()*0.012;
+    if (!isSliding) {
+      playerMixerParts.legL.rotation.x = Math.sin(t)*0.6;
+      playerMixerParts.legR.rotation.x = -Math.sin(t)*0.6;
+      playerMixerParts.armL.rotation.x = -Math.sin(t)*0.5;
+      playerMixerParts.armR.rotation.x = Math.sin(t)*0.5;
+    }
+    playerMixerParts.cape.rotation.x = 0.15 + Math.sin(t*0.8)*0.05;
+
+    checkCollisions();
+
+    document.getElementById('score').textContent = `${Math.floor(distance)} م`;
+    document.getElementById('coins').textContent = `🪙 ${coinCount}`;
+  }
+
+  renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
